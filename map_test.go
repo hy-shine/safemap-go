@@ -38,19 +38,32 @@ func BenchmarkOnlySetSyncMap(b *testing.B) {
 	}
 }
 
-func TestCSMap(t *testing.T) {
-	m, _ := New[string, string](WithHashFn(func(s string) uint64 { return Hashstr(s) }))
-	n := 100000
+func TestCSMapLen(t *testing.T) {
+	safeMap, _ := New[string, int](
+		WithHashFn(func(s string) uint64 { return Hashstr(s) }))
+	n := 1000000
 	wg := sync.WaitGroup{}
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(n int) {
+			defer wg.Done()
 			key := strconv.Itoa(n % 10050)
-			m.Set(key, key)
-			wg.Done()
+			safeMap.Set(key, n)
 		}(i)
 	}
 	wg.Wait()
 
-	assert.Equal(t, 10050, m.Cap())
+	assert.Equal(t, 10050, safeMap.Len())
+
+	// clear
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			safeMap.Clear()
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, 0, safeMap.Len())
 }

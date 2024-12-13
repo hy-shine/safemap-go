@@ -16,18 +16,32 @@ const (
 )
 
 type SafeMap[K comparable, V any] interface {
+	// Get returns key's value and exists
 	Get(key K) (val V, exists bool)
+
+	// Set sets key's value
 	Set(key K, val V)
+
+	// Delete deletes key
 	Delete(key K)
+
+	// GetAndDelete returns key's value and delete it
+	// returns false if key not exists
 	GetAndDelete(key K) (val V, loaded bool)
-	// Clear()
-	Cap() int
+
+	// Clear clears the map
+	Clear()
+
+	// Len returns map items total
+	Len() int
+
+	// IsEmpty returns true if map is empty
 	IsEmpty() bool
 }
 
 type unitMap[K comparable, V any] struct {
 	sync.RWMutex
-	m map[K]V
+	innerMap map[K]V
 }
 
 type safeMap[K comparable, V any] struct {
@@ -47,7 +61,7 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	}
 
 	for range m.lock {
-		m.listShared = append(m.listShared, &unitMap[K, V]{m: make(map[K]V)})
+		m.listShared = append(m.listShared, &unitMap[K, V]{innerMap: make(map[K]V)})
 	}
 
 	return m, nil
@@ -62,7 +76,7 @@ func (m *safeMap[K, V]) hashIndex(key K) int {
 func (m *safeMap[K, V]) Get(key K) (V, bool) {
 	index := m.hashIndex(key)
 	m.listShared[index].RLock()
-	val, b := m.listShared[index].m[key]
+	val, b := m.listShared[index].innerMap[key]
 	m.listShared[index].RUnlock()
 	return val, b
 }
@@ -71,19 +85,19 @@ func (m *safeMap[K, V]) Get(key K) (V, bool) {
 func (m *safeMap[K, V]) Set(key K, val V) {
 	index := m.hashIndex(key)
 	m.listShared[index].Lock()
-	if _, b := m.listShared[index].m[key]; !b {
+	if _, b := m.listShared[index].innerMap[key]; !b {
 		atomic.AddInt32(&m.count, 1)
 	}
-	m.listShared[index].m[key] = val
+	m.listShared[index].innerMap[key] = val
 	m.listShared[index].Unlock()
 }
 
 func (m *safeMap[K, V]) Delete(key K) {
 	index := m.hashIndex(key)
 	m.listShared[index].Lock()
-	if _, b := m.listShared[index].m[key]; b {
+	if _, b := m.listShared[index].innerMap[key]; b {
 		atomic.AddInt32(&m.count, -1)
-		delete(m.listShared[index].m, key)
+		delete(m.listShared[index].innerMap, key)
 	}
 	m.listShared[index].Unlock()
 }
@@ -91,8 +105,8 @@ func (m *safeMap[K, V]) Delete(key K) {
 func (m *safeMap[K, V]) GetAndDelete(key K) (val V, loaded bool) {
 	index := m.hashIndex(key)
 	m.listShared[index].Lock()
-	if val, b := m.listShared[index].m[key]; b {
-		delete(m.listShared[index].m, key)
+	if val, b := m.listShared[index].innerMap[key]; b {
+		delete(m.listShared[index].innerMap, key)
 		m.listShared[index].Unlock()
 		return val, b
 	} else {
@@ -107,14 +121,14 @@ func (m *safeMap[K, V]) Clear() {
 		m.listShared[i].Lock()
 	}
 	for i := 0; i < m.lock; i++ {
-		m.listShared[i].m = make(map[K]V)
+		m.listShared[i].innerMap = make(map[K]V)
 		m.listShared[i].Unlock()
 	}
 	atomic.StoreInt32(&m.count, 0)
 }
 
-// Cap returns map items total
-func (m *safeMap[K, V]) Cap() int {
+// Len returns map items total
+func (m *safeMap[K, V]) Len() int {
 	return int(atomic.LoadInt32(&m.count))
 }
 
