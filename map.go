@@ -53,11 +53,12 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	return m, nil
 }
 
-// hashIndex returns key's index
+// hashIndex returns key's lock index
 func (m *safeMap[K, V]) hashIndex(key K) int {
 	return int(m.hashFunc(key) % uint64(m.lock))
 }
 
+// Get returns key's value
 func (m *safeMap[K, V]) Get(key K) (V, bool) {
 	index := m.hashIndex(key)
 	m.listShared[index].RLock()
@@ -66,6 +67,7 @@ func (m *safeMap[K, V]) Get(key K) (V, bool) {
 	return val, b
 }
 
+// Set sets key's value
 func (m *safeMap[K, V]) Set(key K, val V) {
 	index := m.hashIndex(key)
 	m.listShared[index].Lock()
@@ -97,6 +99,18 @@ func (m *safeMap[K, V]) GetAndDelete(key K) (val V, loaded bool) {
 		m.listShared[index].Unlock()
 		return val, false
 	}
+}
+
+// Clear clears the map
+func (m *safeMap[K, V]) Clear() {
+	for i := 0; i < m.lock; i++ {
+		m.listShared[i].Lock()
+	}
+	for i := 0; i < m.lock; i++ {
+		m.listShared[i].m = make(map[K]V)
+		m.listShared[i].Unlock()
+	}
+	atomic.StoreInt32(&m.count, 0)
 }
 
 // Cap returns map items total
