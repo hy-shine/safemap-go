@@ -29,6 +29,11 @@ type SafeMap[K comparable, V any] interface {
 	// returns false if key not exists
 	GetAndDelete(key K) (val V, loaded bool)
 
+	// GetOrStore returns the existing value for the key if present.
+	// Otherwise, it stores and returns the given value.
+	// The loaded result is true if the value was loaded, false if stored.
+	GetOrStore(key K, val V) (V, bool)
+
 	// Clear clears the map
 	Clear()
 
@@ -50,6 +55,7 @@ type safeMap[K comparable, V any] struct {
 	*opt[K]
 }
 
+// New returns a new SafeMap
 func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	opt, err := loadOptfuns(options...)
 	if err != nil {
@@ -135,4 +141,19 @@ func (m *safeMap[K, V]) Len() int {
 // IsEmpty returns true if map is empty
 func (m *safeMap[K, V]) IsEmpty() bool {
 	return atomic.LoadInt32(&m.count) == 0
+}
+
+// GetOrStore returns the existing value for the key if present.
+// Otherwise, it stores and returns the given value.
+// The loaded result is true if the value was loaded, false if stored.
+func (m *safeMap[K, V]) GetOrStore(key K, val V) (V, bool) {
+	index := m.hashIndex(key)
+	m.listShared[index].Lock()
+	defer m.listShared[index].Unlock()
+	if val, b := m.listShared[index].innerMap[key]; b {
+		return val, b
+	} else {
+		m.listShared[index].innerMap[key] = val
+		return val, false
+	}
 }
