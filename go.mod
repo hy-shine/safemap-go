@@ -1,4 +1,4 @@
-module github.com/hy-shine/safemap
+module github.com/hy-shine/safemap-go
 
 go 1.22.0
 

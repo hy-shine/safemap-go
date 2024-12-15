@@ -9,19 +9,17 @@ import (
 )
 
 func TestNewMap(t *testing.T) {
-	m, err := New[string, string]()
-	if err != nil {
-		b := assert.ErrorIs(t, err, ErrMissingHashFunc)
-		assert.True(t, b)
-		if b {
-			m, _ = New[string, string](WithHashFn(func(s string) uint64 { return Hashstr(s) }))
-		}
-	}
+	_, err := New[string, string]()
+	assert.ErrorIs(t, err, ErrMissingHashFunc)
+
+	fn := WithHashFunc(func(s string) uint64 { return Hashstr(s) })
+	m, err := New[string, string](fn)
+	assert.Nil(t, err)
 	assert.NotNil(t, m)
 }
 
 func BenchmarkOnlySetCSMAP(b *testing.B) {
-	m, _ := New[string, string](WithHashFn(func(s string) uint64 { return Hashstr(s) }))
+	m, _ := New[string, string](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 	m.Set("hello", "world")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -40,7 +38,7 @@ func BenchmarkOnlySetSyncMap(b *testing.B) {
 
 func TestCSMapLen(t *testing.T) {
 	safeMap, _ := New[string, int](
-		WithHashFn(func(s string) uint64 { return Hashstr(s) }))
+		WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 	n := 1000000
 	wg := sync.WaitGroup{}
 	for i := 0; i < n; i++ {

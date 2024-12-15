@@ -25,8 +25,8 @@ type SafeMap[K comparable, V any] interface {
 	// Delete deletes key
 	Delete(key K)
 
-	// GetAndDelete returns key's value and delete it
-	// returns false if key not exists
+	// GetAndDelete returns the existing value for the key and delete it if key exists.
+	// Otherwise, it returns zero value and false.
 	GetAndDelete(key K) (val V, loaded bool)
 
 	// GetOrStore returns the existing value for the key if present.
@@ -52,7 +52,7 @@ type unitMap[K comparable, V any] struct {
 type safeMap[K comparable, V any] struct {
 	count      int32
 	listShared []*unitMap[K, V]
-	*opt[K]
+	*options[K]
 }
 
 // New returns a new SafeMap
@@ -63,7 +63,7 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	}
 
 	m := &safeMap[K, V]{
-		opt: opt,
+		options: opt,
 	}
 
 	for range m.lock {
