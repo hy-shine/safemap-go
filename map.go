@@ -25,14 +25,15 @@ type SafeMap[K comparable, V any] interface {
 	// Delete deletes key
 	Delete(key K)
 
-	// GetAndDelete returns the existing value for the key and delete it if key exists.
+	// GetAndDelete returns the existing value for the key and delete.
+	// if the key exists, the loaded result is true.
 	// Otherwise, it returns zero value and false.
 	GetAndDelete(key K) (val V, loaded bool)
 
-	// GetOrStore returns the existing value for the key if present.
+	// GetOrSet returns the existing value for the key if present.
 	// Otherwise, it stores and returns the given value.
 	// The loaded result is true if the value was loaded, false if stored.
-	GetOrStore(key K, val V) (V, bool)
+	GetOrSet(key K, val V) (V, bool)
 
 	// Clear clears the map
 	Clear()
@@ -66,7 +67,7 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 		options: opt,
 	}
 
-	for range m.lock {
+	for i := 0; i < m.lock; i++ {
 		m.listShared = append(m.listShared, &unitMap[K, V]{innerMap: make(map[K]V)})
 	}
 
@@ -143,10 +144,10 @@ func (m *safeMap[K, V]) IsEmpty() bool {
 	return atomic.LoadInt32(&m.count) == 0
 }
 
-// GetOrStore returns the existing value for the key if present.
+// GetOrSet returns the existing value for the key if present.
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
-func (m *safeMap[K, V]) GetOrStore(key K, val V) (V, bool) {
+func (m *safeMap[K, V]) GetOrSet(key K, val V) (V, bool) {
 	index := m.hashIndex(key)
 	m.listShared[index].Lock()
 	defer m.listShared[index].Unlock()

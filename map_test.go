@@ -65,3 +65,33 @@ func TestCSMapLen(t *testing.T) {
 
 	assert.Equal(t, 0, safeMap.Len())
 }
+
+func TestGetAndDelete(t *testing.T) {
+	const N = 50000
+	m, _ := New[string, string](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	for i := 0; i < N; i++ {
+		m.Set(strconv.Itoa(i), "hello")
+	}
+
+	ch := make(chan struct{ key string }, 5)
+	go func() {
+		for r := range ch {
+			val, exists := m.Get(r.key)
+			assert.False(t, exists)
+			assert.Equal(t, val, "")
+		}
+	}()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, ok := m.GetAndDelete(strconv.Itoa(i))
+			assert.True(t, ok)
+			ch <- struct{ key string }{key: strconv.Itoa(i)}
+		}(i)
+	}
+	wg.Wait()
+	close(ch)
+}
