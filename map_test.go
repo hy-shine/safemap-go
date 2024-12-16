@@ -17,42 +17,6 @@ func TestNewSafeMap(t *testing.T) {
 	assert.NotNil(t, m)
 }
 
-func BenchmarkOnlySetSafeMap(b *testing.B) {
-	m, _ := New[string, string](HashstrKeyFunc())
-	m.Set("hello", "world")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.Set("hello", "world")
-	}
-}
-
-func BenchmarkOnlySetSyncMap(b *testing.B) {
-	var m sync.Map
-	m.Store("hello", "world")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.Store("hello", "world")
-	}
-}
-
-func BenchmarkOnlyGetSafeMap(b *testing.B) {
-	m, _ := New[string, string](HashstrKeyFunc())
-	m.Set("hello", "Hello World!!!")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.Get("hello")
-	}
-}
-
-func BenchmarkOnlyGetSyncMap(b *testing.B) {
-	var m sync.Map
-	m.Store("hello", "Hello World!!!")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.Load("hello")
-	}
-}
-
 func TestSafeMapLen(t *testing.T) {
 	safeMap, _ := New[string, int](HashstrKeyFunc())
 	n := 1000000
@@ -182,7 +146,7 @@ func TestConcurrentOperations(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			key := strconv.Itoa(n % 100)
+			key := strconv.Itoa(n)
 			m.Set(key, n)
 			val, exists := m.Get(key)
 			assert.True(t, exists)
@@ -192,7 +156,16 @@ func TestConcurrentOperations(t *testing.T) {
 	wg.Wait()
 
 	// Verify final map state
-	assert.True(t, m.Len() == 100)
+	assert.True(t, m.Len() == 1000)
+}
+
+func TestClear(t *testing.T) {
+	m, _ := New[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	for i := 0; i < 1000; i++ {
+		m.Set(strconv.Itoa(i), i)
+	}
+	m.Clear()
+	assert.Equal(t, 0, m.Len())
 }
 
 func BenchmarkSafeMapClear(b *testing.B) {

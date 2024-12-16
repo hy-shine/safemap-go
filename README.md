@@ -85,11 +85,31 @@ fmt.Printf("Vals: %v\n", vals)
 m.Clear()
 ```
 
-### Benchmarks
+### Performance
 
-- [ ] safemap-go vs sync.Map
-- [ ] safemap-go vs single-rwLock map
-- [ ] safemap-go vs single-Lock map
+```bash
+goos: darwin
+goarch: arm64
+cpu: Apple M1 Pro
+# non-concurent access
+Benchmark_Single_Get_SafeMap-8                  83271890                14.59 ns/op            0 B/op          0 allocs/op
+Benchmark_Single_Get_SyncMap-8                  90137743                13.28 ns/op            0 B/op          0 allocs/op
+Benchmark_Single_Get_SingleLock-8               86998286                13.54 ns/op            0 B/op          0 allocs/op
+Benchmark_Single_Get_SingleRwLock-8             86816803                13.81 ns/op            0 B/op          0 allocs/op
+Benchmark_Single_Set_SafeMap-8                  42507404                28.68 ns/op            0 B/op          0 allocs/op
+Benchmark_Single_Set_SyncMap-8                  12884960                89.79 ns/op           48 B/op          3 allocs/op
+Benchmark_Single_Set_SingleLock-8               84118538                14.20 ns/op            0 B/op          0 allocs/op
+Benchmark_Single_Set_SingleRwLock-8             63240553                21.04 ns/op            0 B/op          0 allocs/op
+# concurent access
+Benchmark_Concurent_Get_SafeMap-8                2968599               406.6 ns/op            32 B/op          1 allocs/op
+Benchmark_Concurent_Get_SyncMap-8                2907904               427.1 ns/op            24 B/op          1 allocs/op
+Benchmark_Concurent_Get_SingleLock-8             2805212               426.7 ns/op            24 B/op          1 allocs/op
+Benchmark_Concurent_Get_SingleRwLock-8           2869038               417.1 ns/op            24 B/op          1 allocs/op
+Benchmark_Concurent_Set_SafeMap-8                2529397               478.8 ns/op            58 B/op          2 allocs/op
+Benchmark_Concurent_Set_SyncMap-8                2332431               534.0 ns/op            99 B/op          5 allocs/op
+Benchmark_Concurent_Set_SingleLock-8             2274394               540.4 ns/op            51 B/op          2 allocs/op
+Benchmark_Concurent_Set_SingleRwLock-8           2184655               553.9 ns/op            51 B/op          2 allocs/op
+```
 
 ## Methods
 

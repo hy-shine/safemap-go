@@ -149,10 +149,11 @@ func (m *safeMap[K, V]) Clear() {
 		m.buckets[i].Lock()
 		// clear all keys
 		// avoid make new map
+		bucketLen := len(m.buckets[i].innerMap)
 		for key := range m.buckets[i].innerMap {
 			delete(m.buckets[i].innerMap, key)
 		}
-		atomic.AddInt32(&m.count, -int32(len(m.buckets[i].innerMap)))
+		atomic.AddInt32(&m.count, -int32(bucketLen))
 		m.buckets[i].Unlock()
 	}
 }
