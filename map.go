@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 )
 
-var ErrMissingHashFunc = errors.New("missing hash func")
+var ErrMissingHashFunc = errors.New("hash function is required")
 
 const (
 	// default lock count
@@ -35,11 +35,17 @@ type SafeMap[K comparable, V any] interface {
 	// The loaded result is true if the value was loaded, false if stored.
 	GetOrSet(key K, val V) (V, bool)
 
+	// Setx(key K, val V) (val V, loaded bool)
+
 	// Clear clears the map
 	Clear()
 
 	// Len returns map items total
 	Len() int
+
+	// Range calls f sequentially for each key and value present in the map.
+	// If f returns false, the iteration stops.
+	Range(f func(k K, val V) bool)
 
 	// IsEmpty returns true if map is empty
 	IsEmpty() bool
@@ -67,7 +73,7 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 		options: opt,
 	}
 
-	for i := 0; i < m.lock; i++ {
+	for i := 0; i < m.lockCap; i++ {
 		m.listShared = append(m.listShared, &unitMap[K, V]{innerMap: make(map[K]V)})
 	}
 
@@ -76,62 +82,101 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 
 // hashIndex returns key's lock index
 func (m *safeMap[K, V]) hashIndex(key K) int {
-	return int(m.hashFunc(key) % uint64(m.lock))
+	return int(m.hashFunc(key) % uint64(m.lockCap))
+}
+
+func (m *safeMap[K, V]) rLock(index int) {
+	if index >= 0 {
+		m.listShared[index].RLock()
+		return
+	}
+	for i := 0; i < m.lockCap; i++ {
+		m.listShared[i].RLock()
+	}
+}
+
+func (m *safeMap[K, V]) rUnlock(index int) {
+	if index >= 0 {
+		m.listShared[index].RUnlock()
+		return
+	}
+	for i := 0; i < m.lockCap; i++ {
+		m.listShared[i].RUnlock()
+	}
+}
+
+func (m *safeMap[K, V]) lock(index int) {
+	if index >= 0 {
+		m.listShared[index].Lock()
+		return
+	}
+	for i := 0; i < m.lockCap; i++ {
+		m.listShared[i].Lock()
+	}
+}
+
+func (m *safeMap[K, V]) unlock(index int) {
+	if index >= 0 {
+		m.listShared[index].Unlock()
+		return
+	}
+	// unlock for all listShared lock
+	for i := 0; i < m.lockCap; i++ {
+		m.listShared[i].Unlock()
+	}
 }
 
 // Get returns key's value
 func (m *safeMap[K, V]) Get(key K) (V, bool) {
 	index := m.hashIndex(key)
-	m.listShared[index].RLock()
+	m.rLock(index)
+	defer m.rUnlock(index)
 	val, b := m.listShared[index].innerMap[key]
-	m.listShared[index].RUnlock()
 	return val, b
 }
 
 // Set sets key's value
 func (m *safeMap[K, V]) Set(key K, val V) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
+	m.lock(index)
+	defer m.unlock(index)
 	if _, b := m.listShared[index].innerMap[key]; !b {
 		atomic.AddInt32(&m.count, 1)
 	}
 	m.listShared[index].innerMap[key] = val
-	m.listShared[index].Unlock()
 }
 
 func (m *safeMap[K, V]) Delete(key K) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
+	m.lock(index)
+	defer m.unlock(index)
 	if _, b := m.listShared[index].innerMap[key]; b {
 		atomic.AddInt32(&m.count, -1)
 		delete(m.listShared[index].innerMap, key)
 	}
-	m.listShared[index].Unlock()
 }
 
 func (m *safeMap[K, V]) GetAndDelete(key K) (val V, loaded bool) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
+	m.lock(index)
+	defer m.unlock(index)
 	if val, b := m.listShared[index].innerMap[key]; b {
+		atomic.AddInt32(&m.count, -1)
 		delete(m.listShared[index].innerMap, key)
-		m.listShared[index].Unlock()
 		return val, b
 	} else {
-		m.listShared[index].Unlock()
 		return val, false
 	}
 }
 
 // Clear clears the map
 func (m *safeMap[K, V]) Clear() {
-	for i := 0; i < m.lock; i++ {
-		m.listShared[i].Lock()
-	}
-	for i := 0; i < m.lock; i++ {
+	m.lock(-1)
+	for i := 0; i < m.lockCap; i++ {
 		m.listShared[i].innerMap = make(map[K]V)
-		m.listShared[i].Unlock()
 	}
 	atomic.StoreInt32(&m.count, 0)
+	m.unlock(-1)
 }
 
 // Len returns map items total
@@ -149,12 +194,26 @@ func (m *safeMap[K, V]) IsEmpty() bool {
 // The loaded result is true if the value was loaded, false if stored.
 func (m *safeMap[K, V]) GetOrSet(key K, val V) (V, bool) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
-	defer m.listShared[index].Unlock()
+	m.lock(index)
+	defer m.unlock(index)
 	if val, b := m.listShared[index].innerMap[key]; b {
-		return val, b
-	} else {
-		m.listShared[index].innerMap[key] = val
-		return val, false
+		return val, true
+	}
+	m.listShared[index].innerMap[key] = val
+	atomic.AddInt32(&m.count, 1)
+	return val, false
+}
+
+// Range calls f sequentially for each key and value present in the map.
+// If f returns false, the iteration stops.
+func (m *safeMap[K, V]) Range(f func(k K, v V) bool) {
+	m.lock(-1)
+	defer m.unlock(-1)
+	for i := 0; i < m.lockCap; i++ {
+		for key, val := range m.listShared[i].innerMap {
+			if !f(key, val) {
+				return
+			}
+		}
 	}
 }
