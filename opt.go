@@ -1,20 +1,20 @@
 package safemap
 
 type options[K comparable] struct {
-	lockCap  int
-	hashFunc func(K) uint64
+	bucketTotal int
+	hashFunc    func(K) uint64
 }
 
 type OptFunc[K comparable] func(*options[K])
 
-// WithCap sets map capacity
+// WithBuckets sets safemap buckets capacity
 // bit: 0-8
-func WithCap[K comparable](bit uint8) OptFunc[K] {
+func WithBuckets[K comparable](bit uint8) OptFunc[K] {
 	return func(o *options[K]) {
 		if bit > 8 {
 			bit = 8
 		}
-		o.lockCap = int(1 << bit)
+		o.bucketTotal = int(1 << bit)
 	}
 }
 
@@ -31,11 +31,11 @@ func loadOptfuns[K comparable](opts ...OptFunc[K]) (*options[K], error) {
 		opts[i](opt)
 	}
 
-	if opt.lockCap == 0 {
-		opt.lockCap = defaultLockCount
+	if opt.bucketTotal == 0 {
+		opt.bucketTotal = defaultLockCount
 	}
-	if opt.lockCap > maxLockCount {
-		opt.lockCap = maxLockCount
+	if opt.bucketTotal > maxLockCount {
+		opt.bucketTotal = maxLockCount
 	}
 	if opt.hashFunc == nil {
 		return nil, ErrMissingHashFunc

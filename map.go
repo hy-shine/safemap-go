@@ -51,14 +51,14 @@ type SafeMap[K comparable, V any] interface {
 	IsEmpty() bool
 }
 
-type unitMap[K comparable, V any] struct {
+type bucketMap[K comparable, V any] struct {
 	sync.RWMutex
 	innerMap map[K]V
 }
 
 type safeMap[K comparable, V any] struct {
-	count      int32
-	listShared []*unitMap[K, V]
+	count   int32
+	buckets []*bucketMap[K, V]
 	*options[K]
 }
 
@@ -70,11 +70,13 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	}
 
 	m := &safeMap[K, V]{
+		buckets: make([]*bucketMap[K, V], opt.bucketTotal),
 		options: opt,
+		count:   0,
 	}
 
-	for i := 0; i < m.lockCap; i++ {
-		m.listShared = append(m.listShared, &unitMap[K, V]{innerMap: make(map[K]V)})
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i] = &bucketMap[K, V]{innerMap: make(map[K]V)}
 	}
 
 	return m, nil
@@ -82,47 +84,47 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 
 // hashIndex returns key's lock index
 func (m *safeMap[K, V]) hashIndex(key K) int {
-	return int(m.hashFunc(key) % uint64(m.lockCap))
+	return int(m.hashFunc(key) % uint64(m.bucketTotal))
 }
 
 func (m *safeMap[K, V]) rLock(index int) {
 	if index >= 0 {
-		m.listShared[index].RLock()
+		m.buckets[index].RLock()
 		return
 	}
-	for i := 0; i < m.lockCap; i++ {
-		m.listShared[i].RLock()
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].RLock()
 	}
 }
 
 func (m *safeMap[K, V]) rUnlock(index int) {
 	if index >= 0 {
-		m.listShared[index].RUnlock()
+		m.buckets[index].RUnlock()
 		return
 	}
-	for i := 0; i < m.lockCap; i++ {
-		m.listShared[i].RUnlock()
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].RUnlock()
 	}
 }
 
 func (m *safeMap[K, V]) lock(index int) {
 	if index >= 0 {
-		m.listShared[index].Lock()
+		m.buckets[index].Lock()
 		return
 	}
-	for i := 0; i < m.lockCap; i++ {
-		m.listShared[i].Lock()
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].Lock()
 	}
 }
 
 func (m *safeMap[K, V]) unlock(index int) {
 	if index >= 0 {
-		m.listShared[index].Unlock()
+		m.buckets[index].Unlock()
 		return
 	}
 	// unlock for all listShared lock
-	for i := 0; i < m.lockCap; i++ {
-		m.listShared[i].Unlock()
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].Unlock()
 	}
 }
 
@@ -131,7 +133,7 @@ func (m *safeMap[K, V]) Get(key K) (V, bool) {
 	index := m.hashIndex(key)
 	m.rLock(index)
 	defer m.rUnlock(index)
-	val, b := m.listShared[index].innerMap[key]
+	val, b := m.buckets[index].innerMap[key]
 	return val, b
 }
 
@@ -140,19 +142,19 @@ func (m *safeMap[K, V]) Set(key K, val V) {
 	index := m.hashIndex(key)
 	m.lock(index)
 	defer m.unlock(index)
-	if _, b := m.listShared[index].innerMap[key]; !b {
+	if _, b := m.buckets[index].innerMap[key]; !b {
 		atomic.AddInt32(&m.count, 1)
 	}
-	m.listShared[index].innerMap[key] = val
+	m.buckets[index].innerMap[key] = val
 }
 
 func (m *safeMap[K, V]) Delete(key K) {
 	index := m.hashIndex(key)
 	m.lock(index)
 	defer m.unlock(index)
-	if _, b := m.listShared[index].innerMap[key]; b {
+	if _, b := m.buckets[index].innerMap[key]; b {
 		atomic.AddInt32(&m.count, -1)
-		delete(m.listShared[index].innerMap, key)
+		delete(m.buckets[index].innerMap, key)
 	}
 }
 
@@ -160,9 +162,9 @@ func (m *safeMap[K, V]) GetAndDelete(key K) (val V, loaded bool) {
 	index := m.hashIndex(key)
 	m.lock(index)
 	defer m.unlock(index)
-	if val, b := m.listShared[index].innerMap[key]; b {
+	if val, b := m.buckets[index].innerMap[key]; b {
 		atomic.AddInt32(&m.count, -1)
-		delete(m.listShared[index].innerMap, key)
+		delete(m.buckets[index].innerMap, key)
 		return val, b
 	} else {
 		return val, false
@@ -172,8 +174,8 @@ func (m *safeMap[K, V]) GetAndDelete(key K) (val V, loaded bool) {
 // Clear clears the map
 func (m *safeMap[K, V]) Clear() {
 	m.lock(-1)
-	for i := 0; i < m.lockCap; i++ {
-		m.listShared[i].innerMap = make(map[K]V)
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].innerMap = make(map[K]V)
 	}
 	atomic.StoreInt32(&m.count, 0)
 	m.unlock(-1)
@@ -196,10 +198,10 @@ func (m *safeMap[K, V]) GetOrSet(key K, val V) (V, bool) {
 	index := m.hashIndex(key)
 	m.lock(index)
 	defer m.unlock(index)
-	if val, b := m.listShared[index].innerMap[key]; b {
+	if val, b := m.buckets[index].innerMap[key]; b {
 		return val, true
 	}
-	m.listShared[index].innerMap[key] = val
+	m.buckets[index].innerMap[key] = val
 	atomic.AddInt32(&m.count, 1)
 	return val, false
 }
@@ -209,8 +211,8 @@ func (m *safeMap[K, V]) GetOrSet(key K, val V) (V, bool) {
 func (m *safeMap[K, V]) Range(f func(k K, v V) bool) {
 	m.lock(-1)
 	defer m.unlock(-1)
-	for i := 0; i < m.lockCap; i++ {
-		for key, val := range m.listShared[i].innerMap {
+	for i := 0; i < m.bucketTotal; i++ {
+		for key, val := range m.buckets[i].innerMap {
 			if !f(key, val) {
 				return
 			}

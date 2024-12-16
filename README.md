@@ -10,7 +10,7 @@ safemap-go is a high-performance, concurrent-safe generic map implementation in 
 - 🚀 High-performance concurrent access
 - 🧩 Generic type support
 - 🔍 Flexible key hashing
-- 📊 Efficient sharding mechanism
+- 📊 Efficient locks mechanism
 
 ## Installation
 
@@ -20,7 +20,7 @@ safemap-go is a high-performance, concurrent-safe generic map implementation in 
 go get github.com/hy-shine/safemap-go
 ```
 
-**import**
+**import package**
 
 ```go
 import "github.com/hy-shine/safemap-go"
@@ -66,14 +66,23 @@ customHashFunc := safemap.WithHashFunc(func(key string) uint64 {
 
 m, err := safemap.New[string, int](
     customHashFunc,
-    safemap.WithCap(6), // Set map capacity: 1<<6
+    safemap.WithCap(6), // Set lock capacity: 1<<6
 )
 
+var keys []string
+var vals []int
 // Iterate over map
 m.Range(func(key string, value int) bool {
-    fmt.Printf("%s: %d\n", key, value)
+    keys = append(keys, key)
+    vals = append(vals, value)
     return true // continue iteration
 })
+
+fmt.Printf("Keys: %v\n", keys)
+fmt.Printf("Vals: %v\n", vals)
+
+// Clear the map
+m.Clear()
 ```
 
 ## Methods
@@ -90,4 +99,4 @@ m.Range(func(key string, value int) bool {
 
 ## License
 
-[MIT License](./LICENSE)
+See [License](./LICENSE)
