@@ -32,10 +32,10 @@ func loadOptfuns[K comparable](opts ...OptFunc[K]) (*options[K], error) {
 	}
 
 	if opt.bucketTotal == 0 {
-		opt.bucketTotal = defaultLockCount
+		opt.bucketTotal = defaultBucketCount
 	}
-	if opt.bucketTotal > maxLockCount {
-		opt.bucketTotal = maxLockCount
+	if opt.bucketTotal > maxBucketCount {
+		opt.bucketTotal = maxBucketCount
 	}
 	if opt.hashFunc == nil {
 		return nil, ErrMissingHashFunc

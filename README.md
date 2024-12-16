@@ -66,7 +66,7 @@ customHashFunc := safemap.WithHashFunc(func(key string) uint64 {
 
 m, err := safemap.New[string, int](
     customHashFunc,
-    safemap.WithCap(6), // Set lock capacity: 1<<6
+    safemap.WithBuckets(6), // Set buckets capacity: 1<<6
 )
 
 var keys []string
@@ -84,6 +84,12 @@ fmt.Printf("Vals: %v\n", vals)
 // Clear the map
 m.Clear()
 ```
+
+### Benchmarks
+
+- [ ] safemap-go vs sync.Map
+- [ ] safemap-go vs single-rwLock map
+- [ ] safemap-go vs single-Lock map
 
 ## Methods
 

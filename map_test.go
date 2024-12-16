@@ -194,3 +194,14 @@ func TestConcurrentOperations(t *testing.T) {
 	// Verify final map state
 	assert.True(t, m.Len() == 100)
 }
+
+func BenchmarkSafeMapClear(b *testing.B) {
+	m, _ := New[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	for i := 0; i < 1000; i++ {
+		m.Set(strconv.Itoa(i), i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Clear()
+	}
+}
