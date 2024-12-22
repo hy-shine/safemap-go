@@ -1,15 +1,21 @@
-PONY: bench test
+PONY: test benchAll benchConcurrent benchSingle
 
 test:
+	@echo "Run: make test"
+	go test -v ./...
 
 benchAll:
 	@echo "Run: make benchAll"
 	go test -benchmem -bench .
 
-benchConcurrency:
-	@echo "Run: make benchConcurrency"
-	go test -benchmem -bench=_Concurent.* .
+benchConcurrent:
+	@echo "Run: make benchConcurrent"
+	go test -benchmem -bench=^Benchmark_Concurrent.* .
 
 benchSingle:
 	@echo "Run: make benchSingle"
-	go test -benchmem -bench=_Single* .
+	go test -benchmem -bench=^Benchmark_Single.* .
+
+benchBucket:
+	@echo "Run: make benchBucket"
+	go test -benchmem -bench=^Benchmark_Bucket.* .

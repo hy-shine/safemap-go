@@ -8,13 +8,13 @@ type options[K comparable] struct {
 type OptFunc[K comparable] func(*options[K])
 
 // WithBuckets sets safemap buckets capacity
-// bit: 0-8
 func WithBuckets[K comparable](bit uint8) OptFunc[K] {
 	return func(o *options[K]) {
-		if bit > 8 {
-			bit = 8
+		if 1<<bit > maxBucketCount {
+			o.bucketTotal = maxBucketCount
+		} else {
+			o.bucketTotal = int(1 << bit)
 		}
-		o.bucketTotal = int(1 << bit)
 	}
 }
 
@@ -25,7 +25,7 @@ func WithHashFunc[K comparable](fn func(K) uint64) OptFunc[K] {
 	}
 }
 
-func loadOptfuns[K comparable](opts ...OptFunc[K]) (*options[K], error) {
+func loadOpts[K comparable](opts ...OptFunc[K]) (*options[K], error) {
 	opt := &options[K]{}
 	for i := range opts {
 		opts[i](opt)
@@ -44,7 +44,7 @@ func loadOptfuns[K comparable](opts ...OptFunc[K]) (*options[K], error) {
 	return opt, nil
 }
 
-func HashstrKeyFunc() OptFunc[string] {
+func HashStrKeyFunc() OptFunc[string] {
 	return func(o *options[string]) {
 		o.hashFunc = Hashstr
 	}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+
+	"golang.org/x/exp/constraints"
 )
 
 var ErrMissingHashFunc = errors.New("hash function is required")
@@ -12,7 +14,7 @@ const (
 	// default buckets count
 	defaultBucketCount = 1 << 5
 	// max buckets count
-	maxBucketCount = 1 << 8
+	maxBucketCount = 1 << 10
 )
 
 type SafeMap[K comparable, V any] interface {
@@ -33,7 +35,7 @@ type SafeMap[K comparable, V any] interface {
 	// GetOrSet returns the existing value for the key if present.
 	// Otherwise, it stores and returns the given value.
 	// The loaded result is true if the value was loaded, false if stored.
-	GetOrSet(key K, val V) (V, bool)
+	GetOrSet(key K, val V) (present V, loaded bool)
 
 	// Clear clears the map
 	Clear()
@@ -60,9 +62,31 @@ type safeMap[K comparable, V any] struct {
 	*options[K]
 }
 
-// New returns a new SafeMap
-func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
-	opt, err := loadOptfuns(options...)
+// NewMap creates a new thread-safe, generic map with configurable options.
+//
+// The function takes a variadic number of option functions that can customize
+// the map's behavior. It supports different key and value types through Go's
+// generics, with the constraint that the key type must be comparable.
+// If the hashFunc is not provided, the function will return an ErrMissingHashFunc error.
+// Parameters:
+//   - options: Optional configuration functions to customize map behavior
+//     (e.g., setting bucket count, custom hash functions)
+//
+// Returns:
+//   - A SafeMap interface implementation with the specified configuration
+//
+// Example:
+//
+//	// Create a default string-to-int safe map
+//	m, err := NewMap[string, int]()
+//
+//	// Create a map with custom bucket count
+//	m, err := NewMap[string, int](WithBucketCount(8))
+//
+// The function initializes a map with multiple buckets to improve
+// concurrent access performance by reducing lock contention.
+func NewMap[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
+	opt, err := loadOpts(options...)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +102,25 @@ func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	}
 
 	return m, nil
+}
+
+// NewStringMap returns a new string generic key SafeMap
+func NewStringMap[K ~string, V any](options ...OptFunc[K]) SafeMap[K, V] {
+	options = append(options, WithHashFunc(func(k K) uint64 { return Hashstr(string(k)) }))
+	m, _ := NewMap[K, V](options...)
+	return m
+}
+
+// NewIntegerMap returns a new integer generic key SafeMap
+func NewIntegerMap[K constraints.Integer, V any](options ...OptFunc[K]) SafeMap[K, V] {
+	options = append(options, WithHashFunc(func(k K) uint64 {
+		if k < 0 {
+			k = -k
+		}
+		return uint64(k)
+	}))
+	m, _ := NewMap[K, V](options...)
+	return m
 }
 
 // hashIndex returns key's lock index

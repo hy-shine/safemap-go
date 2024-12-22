@@ -9,16 +9,34 @@ import (
 )
 
 func TestNewSafeMap(t *testing.T) {
-	_, err := New[string, string]()
+	_, err := NewMap[string, string]()
 	assert.ErrorIs(t, err, ErrMissingHashFunc)
 
-	m, err := New[string, string](HashstrKeyFunc())
+	m, err := NewMap[string, string](HashStrKeyFunc())
 	assert.Nil(t, err)
 	assert.NotNil(t, m)
 }
 
+func TestNewStringSafeMap(t *testing.T) {
+	m := NewStringMap[string, int]()
+	assert.NotNil(t, m)
+}
+
+func TestNewInteger(t *testing.T) {
+	m := NewIntegerMap[int, string]()
+	assert.NotNil(t, m)
+}
+
+func TestInteger(t *testing.T) {
+	m := NewIntegerMap[int, int]()
+	m.Set(-1, 1)
+	val, loaded := m.GetOrSet(-1, 1)
+	assert.True(t, loaded)
+	assert.Equal(t, val, 1)
+}
+
 func TestSafeMapLen(t *testing.T) {
-	safeMap, _ := New[string, int](HashstrKeyFunc())
+	safeMap, _ := NewMap[string, int](HashStrKeyFunc())
 	n := 1000000
 	wg := sync.WaitGroup{}
 	for i := 0; i < n; i++ {
@@ -48,7 +66,7 @@ func TestSafeMapLen(t *testing.T) {
 
 func TestGetAndDelete(t *testing.T) {
 	const N = 50000
-	m, _ := New[string, string](HashstrKeyFunc())
+	m, _ := NewMap[string, string](HashStrKeyFunc())
 	for i := 0; i < N; i++ {
 		m.Set(strconv.Itoa(i), "hello")
 	}
@@ -77,21 +95,33 @@ func TestGetAndDelete(t *testing.T) {
 }
 
 func TestGetOrSet(t *testing.T) {
-	m, _ := New[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	m, _ := NewMap[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 
-	// Test getting a non-existent key
-	val, loaded := m.GetOrSet("key1", 42)
-	assert.Equal(t, 42, val)
-	assert.False(t, loaded)
+	const N = 300
+	for i := 0; i < N; i++ {
+		m.Set(strconv.Itoa(i), i)
+	}
 
-	// Test getting an existing key
-	val, loaded = m.GetOrSet("key1", 100)
-	assert.Equal(t, 42, val)
-	assert.True(t, loaded)
+	var wg sync.WaitGroup
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			val, exists := m.GetOrSet(strconv.Itoa(n), n)
+			if n < N {
+				assert.True(t, exists)
+				assert.Equal(t, val, n)
+			} else {
+				assert.False(t, exists)
+				assert.Equal(t, val, n)
+			}
+		}(i)
+	}
+	wg.Wait()
 }
 
 func TestIsEmpty(t *testing.T) {
-	m, _ := New[string, string](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	m, _ := NewMap[string, string](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 
 	// Test empty map
 	assert.True(t, m.IsEmpty())
@@ -106,7 +136,7 @@ func TestIsEmpty(t *testing.T) {
 }
 
 func TestRange(t *testing.T) {
-	m, _ := New[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	m, _ := NewMap[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 
 	// Populate the map
 	testData := map[string]int{
@@ -138,7 +168,7 @@ func TestRange(t *testing.T) {
 }
 
 func TestConcurrentOperations(t *testing.T) {
-	m, _ := New[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	m, _ := NewMap[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 
 	// Concurrent set and get operations
 	wg := sync.WaitGroup{}
@@ -160,7 +190,7 @@ func TestConcurrentOperations(t *testing.T) {
 }
 
 func TestClear(t *testing.T) {
-	m, _ := New[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	m, _ := NewMap[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 	for i := 0; i < 1000; i++ {
 		m.Set(strconv.Itoa(i), i)
 	}
@@ -169,7 +199,7 @@ func TestClear(t *testing.T) {
 }
 
 func BenchmarkSafeMapClear(b *testing.B) {
-	m, _ := New[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
+	m, _ := NewMap[string, int](WithHashFunc(func(s string) uint64 { return Hashstr(s) }))
 	for i := 0; i < 1000; i++ {
 		m.Set(strconv.Itoa(i), i)
 	}
