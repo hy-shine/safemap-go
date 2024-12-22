@@ -4,15 +4,17 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+
+	"golang.org/x/exp/constraints"
 )
 
-var ErrMissingHashFunc = errors.New("missing hash func")
+var ErrMissingHashFunc = errors.New("hash function is required")
 
 const (
-	// default lock count
-	defaultLockCount = 32
-	// max lock count
-	maxLockCount = 256
+	// default buckets count
+	defaultBucketCount = 1 << 5
+	// max buckets count
+	maxBucketCount = 1 << 10
 )
 
 type SafeMap[K comparable, V any] interface {
@@ -25,14 +27,15 @@ type SafeMap[K comparable, V any] interface {
 	// Delete deletes key
 	Delete(key K)
 
-	// GetAndDelete returns key's value and delete it
-	// returns false if key not exists
+	// GetAndDelete returns the existing value for the key and delete.
+	// if the key exists, the loaded result is true.
+	// Otherwise, it returns zero value and false.
 	GetAndDelete(key K) (val V, loaded bool)
 
-	// GetOrStore returns the existing value for the key if present.
+	// GetOrSet returns the existing value for the key if present.
 	// Otherwise, it stores and returns the given value.
 	// The loaded result is true if the value was loaded, false if stored.
-	GetOrStore(key K, val V) (V, bool)
+	GetOrSet(key K, val V) (present V, loaded bool)
 
 	// Clear clears the map
 	Clear()
@@ -40,97 +43,162 @@ type SafeMap[K comparable, V any] interface {
 	// Len returns map items total
 	Len() int
 
+	// Range calls f sequentially for each key and value present in the map.
+	// If f returns false, the iteration stops.
+	Range(f func(k K, val V) bool)
+
 	// IsEmpty returns true if map is empty
 	IsEmpty() bool
 }
 
-type unitMap[K comparable, V any] struct {
+type bucketMap[K comparable, V any] struct {
 	sync.RWMutex
 	innerMap map[K]V
 }
 
 type safeMap[K comparable, V any] struct {
-	count      int32
-	listShared []*unitMap[K, V]
-	*opt[K]
+	count   int32
+	buckets []*bucketMap[K, V]
+	*options[K]
 }
 
-// New returns a new SafeMap
-func New[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
-	opt, err := loadOptfuns(options...)
+// NewMap creates a new thread-safe, generic map with configurable options.
+//
+// The function takes a variadic number of option functions that can customize
+// the map's behavior. It supports different key and value types through Go's
+// generics, with the constraint that the key type must be comparable.
+// If the hashFunc is not provided, the function will return an ErrMissingHashFunc error.
+// Parameters:
+//   - options: Optional configuration functions to customize map behavior
+//     (e.g., setting bucket count, custom hash functions)
+//
+// Returns:
+//   - A SafeMap interface implementation with the specified configuration
+//
+// Example:
+//
+//	// Create a default string-to-int safe map
+//	m, err := NewMap[string, int]()
+//
+//	// Create a map with custom bucket count
+//	m, err := NewMap[string, int](WithBucketCount(8))
+//
+// The function initializes a map with multiple buckets to improve
+// concurrent access performance by reducing lock contention.
+func NewMap[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
+	opt, err := loadOpts(options...)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &safeMap[K, V]{
-		opt: opt,
+		buckets: make([]*bucketMap[K, V], opt.bucketTotal),
+		options: opt,
+		count:   0,
 	}
 
-	for range m.lock {
-		m.listShared = append(m.listShared, &unitMap[K, V]{innerMap: make(map[K]V)})
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i] = &bucketMap[K, V]{innerMap: make(map[K]V)}
 	}
 
 	return m, nil
 }
 
+// NewStringMap returns a new string generic key SafeMap
+func NewStringMap[K ~string, V any](options ...OptFunc[K]) SafeMap[K, V] {
+	options = append(options, WithHashFunc(func(k K) uint64 { return Hashstr(string(k)) }))
+	m, _ := NewMap[K, V](options...)
+	return m
+}
+
+// NewIntegerMap returns a new integer generic key SafeMap
+func NewIntegerMap[K constraints.Integer, V any](options ...OptFunc[K]) SafeMap[K, V] {
+	options = append(options, WithHashFunc(func(k K) uint64 {
+		if k < 0 {
+			k = -k
+		}
+		return uint64(k)
+	}))
+	m, _ := NewMap[K, V](options...)
+	return m
+}
+
 // hashIndex returns key's lock index
 func (m *safeMap[K, V]) hashIndex(key K) int {
-	return int(m.hashFunc(key) % uint64(m.lock))
+	return int(m.hashFunc(key) & uint64(m.bucketTotal-1))
+}
+
+// allLock locks all buckets
+func (m *safeMap[K, V]) allLock() {
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].Lock()
+	}
+}
+
+// allUnlock unlocks all buckets
+func (m *safeMap[K, V]) allUnlock() {
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].Unlock()
+	}
 }
 
 // Get returns key's value
 func (m *safeMap[K, V]) Get(key K) (V, bool) {
 	index := m.hashIndex(key)
-	m.listShared[index].RLock()
-	val, b := m.listShared[index].innerMap[key]
-	m.listShared[index].RUnlock()
+	m.buckets[index].RLock()
+	val, b := m.buckets[index].innerMap[key]
+	m.buckets[index].RUnlock()
 	return val, b
 }
 
 // Set sets key's value
 func (m *safeMap[K, V]) Set(key K, val V) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
-	if _, b := m.listShared[index].innerMap[key]; !b {
+	m.buckets[index].Lock()
+	if _, b := m.buckets[index].innerMap[key]; !b {
 		atomic.AddInt32(&m.count, 1)
 	}
-	m.listShared[index].innerMap[key] = val
-	m.listShared[index].Unlock()
+	m.buckets[index].innerMap[key] = val
+	m.buckets[index].Unlock()
 }
 
 func (m *safeMap[K, V]) Delete(key K) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
-	if _, b := m.listShared[index].innerMap[key]; b {
+	m.buckets[index].Lock()
+	if _, b := m.buckets[index].innerMap[key]; b {
+		delete(m.buckets[index].innerMap, key)
 		atomic.AddInt32(&m.count, -1)
-		delete(m.listShared[index].innerMap, key)
 	}
-	m.listShared[index].Unlock()
+	m.buckets[index].Unlock()
 }
 
 func (m *safeMap[K, V]) GetAndDelete(key K) (val V, loaded bool) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
-	if val, b := m.listShared[index].innerMap[key]; b {
-		delete(m.listShared[index].innerMap, key)
-		m.listShared[index].Unlock()
-		return val, b
+	m.buckets[index].Lock()
+	if val, b := m.buckets[index].innerMap[key]; b {
+		delete(m.buckets[index].innerMap, key)
+		atomic.AddInt32(&m.count, -1)
+		m.buckets[index].Unlock()
+		return val, true
 	} else {
-		m.listShared[index].Unlock()
+		m.buckets[index].Unlock()
 		return val, false
 	}
 }
 
 // Clear clears the map
 func (m *safeMap[K, V]) Clear() {
-	for i := 0; i < m.lock; i++ {
-		m.listShared[i].Lock()
+	for i := 0; i < m.bucketTotal; i++ {
+		m.buckets[i].Lock()
+		// clear all keys
+		// avoid make new map
+		bucketLen := len(m.buckets[i].innerMap)
+		for key := range m.buckets[i].innerMap {
+			delete(m.buckets[i].innerMap, key)
+		}
+		atomic.AddInt32(&m.count, -int32(bucketLen))
+		m.buckets[i].Unlock()
 	}
-	for i := 0; i < m.lock; i++ {
-		m.listShared[i].innerMap = make(map[K]V)
-		m.listShared[i].Unlock()
-	}
-	atomic.StoreInt32(&m.count, 0)
 }
 
 // Len returns map items total
@@ -143,17 +211,34 @@ func (m *safeMap[K, V]) IsEmpty() bool {
 	return atomic.LoadInt32(&m.count) == 0
 }
 
-// GetOrStore returns the existing value for the key if present.
+// GetOrSet returns the existing value for the key if present.
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
-func (m *safeMap[K, V]) GetOrStore(key K, val V) (V, bool) {
+func (m *safeMap[K, V]) GetOrSet(key K, val V) (V, bool) {
 	index := m.hashIndex(key)
-	m.listShared[index].Lock()
-	defer m.listShared[index].Unlock()
-	if val, b := m.listShared[index].innerMap[key]; b {
-		return val, b
-	} else {
-		m.listShared[index].innerMap[key] = val
-		return val, false
+	m.buckets[index].Lock()
+	if val, b := m.buckets[index].innerMap[key]; b {
+		m.buckets[index].Unlock()
+		return val, true
 	}
+
+	m.buckets[index].innerMap[key] = val
+	atomic.AddInt32(&m.count, 1)
+	m.buckets[index].Unlock()
+	return val, false
+}
+
+// Range calls f sequentially for each key and value present in the map.
+// If f returns false, the iteration stops.
+func (m *safeMap[K, V]) Range(f func(k K, v V) bool) {
+	m.allLock()
+	for i := 0; i < m.bucketTotal; i++ {
+		for key, val := range m.buckets[i].innerMap {
+			if !f(key, val) {
+				m.allUnlock()
+				return
+			}
+		}
+	}
+	m.allUnlock()
 }

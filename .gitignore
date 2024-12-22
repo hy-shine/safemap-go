@@ -1,0 +1,16 @@
+.idea/
+.vscode/
+
+# ignore macOS specific files
+.DS_Store
+
+# Test binary, built with `go test -c`
+*.test
+_test
+_testmain.go
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+vendor/
