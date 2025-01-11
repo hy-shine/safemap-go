@@ -46,7 +46,9 @@ func (m *SyncMap[K, V]) GetAndDelete(key K) (value V, loaded bool) {
 // If f returns false, the iteration stops.
 // Same as sync.Map.Range
 func (m *SyncMap[K, V]) Range(f func(K, V) bool) {
-	m.Range(f)
+	m.p.Range(func(key, value any) bool {
+		return f(key.(K), value.(V))
+	})
 }
 
 // GetOrSet returns the existing value for the key if present.
@@ -59,7 +61,7 @@ func (m *SyncMap[K, V]) GetOrSet(key K, val V) (actual V, loaded bool) {
 	if loaded {
 		return _val.(V), true
 	}
-	return actual, false
+	return val, false
 }
 
 // Swap stores the value for the key and returns the previous value.

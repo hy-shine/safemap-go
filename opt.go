@@ -8,12 +8,12 @@ type options[K comparable] struct {
 type OptFunc[K comparable] func(*options[K])
 
 // WithBuckets sets safemap buckets capacity
-func WithBuckets[K comparable](bit uint8) OptFunc[K] {
+func WithBuckets[K comparable](mask uint8) OptFunc[K] {
 	return func(o *options[K]) {
-		if 1<<bit > maxBucketCount {
+		if 1<<mask > maxBucketCount {
 			o.bucketTotal = maxBucketCount
 		} else {
-			o.bucketTotal = int(1 << bit)
+			o.bucketTotal = int(1 << mask)
 		}
 	}
 }
