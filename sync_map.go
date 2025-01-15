@@ -11,6 +11,13 @@ type SyncMap[K comparable, V any] struct {
 	p sync.Map
 }
 
+// NewSyncMap returns a new SyncMap
+func NewSyncMap[K comparable, V any]() *SyncMap[K, V] {
+	return &SyncMap[K, V]{
+		p: sync.Map{},
+	}
+}
+
 // Get returns key's value, and exists.
 //
 // Same as sync.Map.Load

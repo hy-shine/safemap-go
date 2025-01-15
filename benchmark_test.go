@@ -63,7 +63,7 @@ var data = struct {
 }
 
 func Benchmark_Single_Get_SafeMap(b *testing.B) {
-	m, _ := NewMap[string, string](HashStrKeyFunc())
+	m, _ := NewSafeMap[string, string](HashStrKeyFunc())
 	m.Set(data.key, data.val)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -99,7 +99,7 @@ func Benchmark_Single_Get_SingleRwLock(b *testing.B) {
 }
 
 func Benchmark_Single_Set_SafeMap(b *testing.B) {
-	m, _ := NewMap[string, string](HashStrKeyFunc())
+	m, _ := NewSafeMap[string, string](HashStrKeyFunc())
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		m.Set(data.key, data.val)
@@ -131,7 +131,7 @@ func Benchmark_Single_Set_SingleRwLock(b *testing.B) {
 }
 
 func Benchmark_Concurrent_Get_SafeMap(b *testing.B) {
-	m, _ := NewMap[string, string](HashStrKeyFunc())
+	m, _ := NewSafeMap[string, string](HashStrKeyFunc())
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func() {
@@ -187,7 +187,7 @@ func Benchmark_Concurrent_Get_SingleRwLock(b *testing.B) {
 }
 
 func Benchmark_Concurrent_Set_SafeMap(b *testing.B) {
-	m, _ := NewMap[string, string](HashStrKeyFunc())
+	m, _ := NewSafeMap[string, string](HashStrKeyFunc())
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -243,7 +243,7 @@ func Benchmark_Concurrent_Set_SingleRwLock(b *testing.B) {
 }
 
 func Benchmark_Bucket1_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](1))
+	m := NewSafeMapString[string, string](WithBuckets[string](1))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -257,7 +257,7 @@ func Benchmark_Bucket1_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket2_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](2))
+	m := NewSafeMapString[string, string](WithBuckets[string](2))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -271,7 +271,7 @@ func Benchmark_Bucket2_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket3_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](3))
+	m := NewSafeMapString[string, string](WithBuckets[string](3))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -285,7 +285,7 @@ func Benchmark_Bucket3_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket4_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](4))
+	m := NewSafeMapString[string, string](WithBuckets[string](4))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -299,7 +299,7 @@ func Benchmark_Bucket4_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket5_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](5))
+	m := NewSafeMapString[string, string](WithBuckets[string](5))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -313,7 +313,7 @@ func Benchmark_Bucket5_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket6_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](6))
+	m := NewSafeMapString[string, string](WithBuckets[string](6))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -327,7 +327,7 @@ func Benchmark_Bucket6_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket7_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](7))
+	m := NewSafeMapString[string, string](WithBuckets[string](7))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -341,7 +341,7 @@ func Benchmark_Bucket7_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket8_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](8))
+	m := NewSafeMapString[string, string](WithBuckets[string](8))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {
@@ -355,7 +355,7 @@ func Benchmark_Bucket8_Get_SafeMap(b *testing.B) {
 }
 
 func Benchmark_Bucket9_Get_SafeMap(b *testing.B) {
-	m := NewStringMap[string, string](WithBuckets[string](9))
+	m := NewSafeMapString[string, string](WithBuckets[string](9))
 	ch := make(chan struct{}, b.N)
 	for i := 0; i < b.N; i++ {
 		go func(n int) {

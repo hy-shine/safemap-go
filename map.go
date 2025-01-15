@@ -62,7 +62,7 @@ type safeMap[K comparable, V any] struct {
 	*options[K]
 }
 
-// NewMap creates a new thread-safe, generic map with configurable options.
+// NewSafeMap creates a new thread-safe, generic map with configurable options.
 //
 // The function takes a variadic number of option functions that can customize
 // the map's behavior. It supports different key and value types through Go's
@@ -78,14 +78,14 @@ type safeMap[K comparable, V any] struct {
 // Example:
 //
 //	// Create a default string-to-int safe map
-//	m, err := NewMap[string, int]()
+//	m, err := NewSafeMap[string, int]()
 //
 //	// Create a map with custom bucket count
-//	m, err := NewMap[string, int](WithBucketCount(8))
+//	m, err := NewSafeMap[string, int](WithBucketCount(8))
 //
 // The function initializes a map with multiple buckets to improve
 // concurrent access performance by reducing lock contention.
-func NewMap[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
+func NewSafeMap[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	opt, err := loadOpts(options...)
 	if err != nil {
 		return nil, err
@@ -104,22 +104,22 @@ func NewMap[K comparable, V any](options ...OptFunc[K]) (SafeMap[K, V], error) {
 	return m, nil
 }
 
-// NewStringMap returns a new string generic key SafeMap
-func NewStringMap[K ~string, V any](options ...OptFunc[K]) SafeMap[K, V] {
+// NewSafeMapString returns a new string generic key SafeMap
+func NewSafeMapString[K ~string, V any](options ...OptFunc[K]) SafeMap[K, V] {
 	options = append(options, WithHashFunc(func(k K) uint64 { return Hashstr(string(k)) }))
-	m, _ := NewMap[K, V](options...)
+	m, _ := NewSafeMap[K, V](options...)
 	return m
 }
 
-// NewIntegerMap returns a new integer generic key SafeMap
-func NewIntegerMap[K constraints.Integer, V any](options ...OptFunc[K]) SafeMap[K, V] {
+// NewSafeMapInteger returns a new integer generic key SafeMap
+func NewSafeMapInteger[K constraints.Integer, V any](options ...OptFunc[K]) SafeMap[K, V] {
 	options = append(options, WithHashFunc(func(k K) uint64 {
 		if k < 0 {
 			k = -k
 		}
 		return uint64(k)
 	}))
-	m, _ := NewMap[K, V](options...)
+	m, _ := NewSafeMap[K, V](options...)
 	return m
 }
 

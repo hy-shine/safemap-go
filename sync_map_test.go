@@ -8,7 +8,7 @@ import (
 )
 
 func TestSyncMap(t *testing.T) {
-	m := SyncMap[string, string]{}
+	m := NewSyncMap[string, string]()
 	value, ok := m.Get("key")
 	assert.False(t, ok)
 	assert.Equal(t, "", value)
@@ -34,7 +34,7 @@ func TestSyncMap(t *testing.T) {
 }
 
 func TestSyncMapPointerInt(t *testing.T) {
-	m := SyncMap[int, *int]{}
+	m := NewSyncMap[int, *int]()
 
 	value, ok := m.Get(1)
 	assert.False(t, ok)
@@ -59,7 +59,7 @@ func TestSyncMapPointerInt(t *testing.T) {
 }
 
 func TestSyncMapGet(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Test getting non-existent key
 	val, exists := m.Get("key1")
@@ -82,7 +82,7 @@ func TestSyncMapGet(t *testing.T) {
 }
 
 func TestSyncMapSet(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Test setting a value
 	m.Set("key1", 42)
@@ -109,7 +109,7 @@ func TestSyncMapDelete(t *testing.T) {
 	m := &SyncMap[string, int]{}
 
 	// Test deleting non-existent key
-	m.Delete("key1") // Should not panic
+	m.Delete("key1")
 
 	// Test deleting existing key
 	m.Set("key1", 42)
@@ -124,7 +124,7 @@ func TestSyncMapDelete(t *testing.T) {
 }
 
 func TestSyncMapGetAndDelete(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Test getting and deleting non-existent key
 	val, loaded := m.GetAndDelete("key1")
@@ -184,7 +184,7 @@ func TestSyncMapRange(t *testing.T) {
 }
 
 func TestSyncMapGetOrSet(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Test GetOrSet for non-existent key
 	val, loaded := m.GetOrSet("key1", 42)
@@ -206,7 +206,7 @@ func TestSyncMapGetOrSet(t *testing.T) {
 }
 
 func TestSyncMapSwap(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Test Swap for non-existent key
 	prev, loaded := m.Swap("key1", 42)
@@ -228,7 +228,7 @@ func TestSyncMapSwap(t *testing.T) {
 }
 
 func TestSyncMapCompareAndDelete(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Test CompareAndDelete for non-existent key
 	deleted := m.CompareAndDelete("key1", 42)
@@ -257,7 +257,7 @@ func TestSyncMapCompareAndDelete(t *testing.T) {
 }
 
 func TestSyncMapCompareAndSwap(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Test CompareAndSwap for non-existent key
 	swapped := m.CompareAndSwap("key1", 0, 42)
@@ -287,7 +287,7 @@ func TestSyncMapCompareAndSwap(t *testing.T) {
 
 // Concurrent Tests
 func TestSyncMapConcurrentOperations(t *testing.T) {
-	m := &SyncMap[string, int]{}
+	m := NewSyncMap[string, int]()
 
 	// Concurrent writes
 	var wg sync.WaitGroup
