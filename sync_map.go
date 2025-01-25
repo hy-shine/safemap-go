@@ -11,6 +11,16 @@ type SyncMap[K comparable, V any] struct {
 	p sync.Map
 }
 
+// Len returns the number of elements in the map
+func (m *SyncMap[K, V]) Len() int {
+	count := 0
+	m.p.Range(func(_, _ any) bool {
+		count++
+		return true
+	})
+	return count
+}
+
 // Get returns key's value, and exists.
 //
 // Same as sync.Map.Load
