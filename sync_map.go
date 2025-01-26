@@ -100,3 +100,8 @@ func (m *SyncMap[K, V]) CompareAndDelete(key K, old V) (deleted bool) {
 func (m *SyncMap[K, V]) CompareAndSwap(key K, old, new V) bool {
 	return m.p.CompareAndSwap(key, old, new)
 }
+
+// NewSyncMap returns a new empty SyncMap
+func NewSyncMap[K comparable, V any]() *SyncMap[K, V] {
+	return &SyncMap[K, V]{}
+}
