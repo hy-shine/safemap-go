@@ -2,7 +2,7 @@
 
 ## Overview
 
-safemap-go is a high-performance, concurrent-safe generic map implementation in Go. It inspires by [sync.Map](https://pkg.go.dev/sync#Map). It provides a thread-safe alternative to standard Go maps with enhanced features and optimized performance.
+safemap-go is a high-performance, concurrent-safe generic map implementation in Go. It provides a thread-safe alternative to standard Go maps with enhanced features and optimized performance.
 
 ## Features
 
@@ -131,7 +131,7 @@ Benchmark_Concurrent_Set_SingleRwLock-8           1870220               625.3 ns
 
 ### SyncMap
 
-It is a generic wrapper around **sync.Map** that provides thread-safe concurrent map operations.
+It is a generic wrapper around **[sync.Map](https://pkg.go.dev/sync#Map)** that provides thread-safe concurrent map operations.
 It allows storing and retrieving key-value pairs with generic types K and V,
 and implements the thread-safe properties of the standard library's sync.Map.
 
@@ -143,16 +143,14 @@ m.Set("key", 42)
 
 // Get a value
 val, _ := m.Get("key")
-fmt.Println(val)
+fmt.Println(val) // 42
 
 // Delete a key
 m.Delete("key")
 
 // GetAndDelete returns the existing value for the key and delete.
-val, loaded := m.GetAndDelete("key")
-if loaded {
-    fmt.Println(val)
-}
+_, loaded := m.GetAndDelete("key")
+fmt.Println(loaded) // false
 ```
 
 ### RwMap
@@ -169,16 +167,14 @@ m.Set("key", 42)
 
 // Get a value
 val, _ := m.Get("key")
-fmt.Println(val)
+fmt.Println(val) // 42
 
 // Delete a key
 m.Delete("key")
 
 // GetAndDelete returns the existing value for the key and delete.
-val, loaded := m.GetAndDelete("key")
-if loaded {
-    fmt.Println(val)
-}
+_, loaded := m.GetAndDelete("key")
+fmt.Println(loaded) // false
 ```
 
 ## License
