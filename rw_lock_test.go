@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestRwLock_Get(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_Get(t *testing.T) {
+	lock := NewRwMap[string, int]()
 	lock.Set("foo", 42)
 
 	val, ok := lock.Get("foo")
@@ -20,8 +20,8 @@ func TestRwLock_Get(t *testing.T) {
 	}
 }
 
-func TestRwLock_Set(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_Set(t *testing.T) {
+	lock := NewRwMap[string, int]()
 	lock.Set("foo", 42)
 
 	val, ok := lock.Get("foo")
@@ -37,8 +37,8 @@ func TestRwLock_Set(t *testing.T) {
 	}
 }
 
-func TestRwLock_Delete(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_Delete(t *testing.T) {
+	lock := NewRwMap[string, int]()
 	lock.Set("foo", 42)
 	lock.Delete("foo")
 
@@ -51,8 +51,8 @@ func TestRwLock_Delete(t *testing.T) {
 	lock.Delete("bar")
 }
 
-func TestRwLock_GetAndDelete(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_GetAndDelete(t *testing.T) {
+	lock := NewRwMap[string, int]()
 	lock.Set("foo", 42)
 
 	val, loaded := lock.GetAndDelete("foo")
@@ -72,8 +72,8 @@ func TestRwLock_GetAndDelete(t *testing.T) {
 	}
 }
 
-func TestRwLock_GetOrSet(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_GetOrSet(t *testing.T) {
+	lock := NewRwMap[string, int]()
 
 	// Test setting new value
 	val, loaded := lock.GetOrSet("foo", 42)
@@ -88,8 +88,8 @@ func TestRwLock_GetOrSet(t *testing.T) {
 	}
 }
 
-func TestRwLock_Len(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_Len(t *testing.T) {
+	lock := NewRwMap[string, int]()
 	if lock.Len() != 0 {
 		t.Errorf("Len() = %v, want %v", lock.Len(), 0)
 	}
@@ -105,8 +105,8 @@ func TestRwLock_Len(t *testing.T) {
 	}
 }
 
-func TestRwLock_Range(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_Range(t *testing.T) {
+	lock := NewRwMap[string, int]()
 	lock.Set("foo", 42)
 	lock.Set("bar", 100)
 
@@ -132,8 +132,8 @@ func TestRwLock_Range(t *testing.T) {
 	}
 }
 
-func TestRwLock_Concurrent(t *testing.T) {
-	lock := NewRwLock[string, int]()
+func TestRwMap_Concurrent(t *testing.T) {
+	lock := NewRwMap[string, int]()
 	var wg sync.WaitGroup
 
 	// Concurrent writes

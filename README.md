@@ -126,6 +126,61 @@ Benchmark_Concurrent_Set_SingleRwLock-8           1870220               625.3 ns
 - `IsEmpty() bool`: Check if map is empty
 - `Range(f func(k K, val V) bool)`: Iterate over entries
 
+
+## Other Concurrent Maps
+
+### SyncMap
+
+It is a generic wrapper around **sync.Map** that provides thread-safe concurrent map operations.
+It allows storing and retrieving key-value pairs with generic types K and V,
+and implements the thread-safe properties of the standard library's sync.Map.
+
+```go
+m := safemap.NewSyncMap[string, int]()
+
+// Set a values 
+m.Set("key", 42)
+
+// Get a value
+val, _ := m.Get("key")
+fmt.Println(val)
+
+// Delete a key
+m.Delete("key")
+
+// GetAndDelete returns the existing value for the key and delete.
+val, loaded := m.GetAndDelete("key")
+if loaded {
+    fmt.Println(val)
+}
+```
+
+### RwMap
+
+It is a generic wrapper around **sync.RwMutex** that provides thread-safe concurrent map operations.
+It allows storing and retrieving key-value pairs with generic types K and V,
+and implements the thread-safe properties of the standard library's sync.RwMutex.
+
+```go
+m := safemap.NewRwMap[string, int]()
+
+// Set a values 
+m.Set("key", 42)
+
+// Get a value
+val, _ := m.Get("key")
+fmt.Println(val)
+
+// Delete a key
+m.Delete("key")
+
+// GetAndDelete returns the existing value for the key and delete.
+val, loaded := m.GetAndDelete("key")
+if loaded {
+    fmt.Println(val)
+}
+```
+
 ## License
 
 See [License](./LICENSE)
