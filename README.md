@@ -136,7 +136,9 @@ It allows storing and retrieving key-value pairs with generic types K and V,
 and implements the thread-safe properties of the standard library's sync.Map.
 
 ```go
-m := safemap.NewSyncMap[string, int]()
+import "github.com/hy-shine/safemap-go/maps"
+
+m := maps.NewSyncMap[string, int]()
 
 // Set a values 
 m.Set("key", 42)
@@ -155,12 +157,14 @@ fmt.Println(loaded) // false
 
 ### RwMap
 
-It is a generic wrapper around **sync.RwMutex** that provides thread-safe concurrent map operations.
+It is a generic wrapper around **sync.RWMutex** that provides thread-safe concurrent map operations.
 It allows storing and retrieving key-value pairs with generic types K and V,
 and implements the thread-safe properties of the standard library's sync.RwMutex.
 
 ```go
-m := safemap.NewRwMap[string, int]()
+import "github.com/hy-shine/safemap-go/maps"
+
+m := maps.NewRwMap[string, int]()
 
 // Set a values 
 m.Set("key", 42)
