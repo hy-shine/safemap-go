@@ -3,6 +3,8 @@
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.18-blue)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
+[English](README.md) | [简体中文](README_zh.md)
+
 ## Overview
 
 `safemap-go` is a **high-performance**, **thread-safe** generic map implementation for Go. It uses a **sharded locking mechanism** to achieve superior concurrent performance compared to `sync.Map` and single-lock solutions.
