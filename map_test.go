@@ -1,6 +1,7 @@
 package safemap
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -206,5 +207,67 @@ func BenchmarkSafeMapClear(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		m.Clear()
+	}
+}
+
+func TestRangeDeadlock(t *testing.T) {
+	m := NewStringMap[string, int]()
+	m.Set("key1", 1)
+	m.Set("key2", 2)
+
+	// This should not deadlock
+	// We modify the map inside the Range callback
+	m.Range(func(k string, v int) bool {
+		m.Set("key3", 3)
+		m.Delete("key1")
+		return true
+	})
+
+	val, ok := m.Get("key3")
+	assert.True(t, ok)
+	assert.Equal(t, 3, val)
+
+	_, ok = m.Get("key1")
+	assert.False(t, ok)
+}
+
+func TestRangeCoverage(t *testing.T) {
+	m := NewStringMap[string, int]()
+	count := 100
+	for i := 0; i < count; i++ {
+		m.Set(string(rune(i)), i)
+	}
+
+	visited := 0
+	m.Range(func(k string, v int) bool {
+		visited++
+		return true
+	})
+	assert.Equal(t, count, visited)
+}
+
+func TestResize(t *testing.T) {
+	m := NewStringMap[string, int](WithBuckets[string](2)) // Start with 4 buckets (1<<2)
+	count := 1000
+	for i := 0; i < count; i++ {
+		m.Set(fmt.Sprintf("key-%d", i), i)
+	}
+
+	// Verify initial state
+	assert.Equal(t, 4, m.bucketTotal)
+	assert.Equal(t, count, m.Len())
+
+	// Resize to 16 buckets
+	m.Resize(16)
+
+	// Verify state after resize
+	assert.Equal(t, 16, m.bucketTotal)
+	assert.Equal(t, count, m.Len())
+
+	// Verify data integrity
+	for i := 0; i < count; i++ {
+		val, ok := m.Get(fmt.Sprintf("key-%d", i))
+		assert.True(t, ok)
+		assert.Equal(t, i, val)
 	}
 }

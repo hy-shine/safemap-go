@@ -126,7 +126,6 @@ Benchmark_Concurrent_Set_SingleRwLock-8           1870220               625.3 ns
 - `IsEmpty() bool`: Check if map is empty
 - `Range(f func(k K, val V) bool)`: Iterate over entries
 
-
 ## Other Concurrent Maps
 
 ### SyncMap
