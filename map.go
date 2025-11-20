@@ -11,9 +11,9 @@ import (
 var ErrMissingHashFunc = errors.New("hash function is required")
 
 const (
-	// default buckets count
+	// DefaultBucketCount is the default number of buckets.
 	defaultBucketCount = 1 << 5
-	// max buckets count
+	// MaxBucketCount is the maximum number of buckets.
 	maxBucketCount = 1 << 10
 )
 
@@ -31,7 +31,7 @@ type bucketMap[K comparable, V any] struct {
 // The map is designed for high-concurrency scenarios where
 // thread safety and performance are important considerations.
 //
-// As you use this map, you must be create it with NewMap/NewStringMap/NewIntegerMap function.
+// To use this map, you must create it with NewMap, NewStringMap, or NewIntegerMap.
 type SafeMap[K comparable, V any] struct {
 	count   int32
 	buckets []*bucketMap[K, V]

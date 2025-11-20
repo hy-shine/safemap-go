@@ -7,7 +7,10 @@ type options[K comparable] struct {
 
 type OptFunc[K comparable] func(*options[K])
 
-// WithBuckets sets safemap buckets capacity
+// WithBuckets sets the number of buckets to 1<<mask.
+// For example, WithBuckets(5) creates 32 buckets (1<<5).
+// If mask is 0, the default bucket count (32) is used.
+// If 1<<mask exceeds maxBucketCount (1024), it is capped at the maximum.
 func WithBuckets[K comparable](mask uint8) OptFunc[K] {
 	return func(o *options[K]) {
 		if mask == 0 {
