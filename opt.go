@@ -10,7 +10,10 @@ type OptFunc[K comparable] func(*options[K])
 // WithBuckets sets safemap buckets capacity
 func WithBuckets[K comparable](mask uint8) OptFunc[K] {
 	return func(o *options[K]) {
-		if 1<<mask > maxBucketCount {
+		if mask == 0 {
+			// Use default bucket count
+			o.bucketTotal = defaultBucketCount
+		} else if 1<<mask > maxBucketCount {
 			o.bucketTotal = maxBucketCount
 		} else {
 			o.bucketTotal = int(1 << mask)
