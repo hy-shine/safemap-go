@@ -437,13 +437,13 @@ func TestConcurrentRangeAndModify(t *testing.T) {
 func TestWithBucketsZero(t *testing.T) {
 	m := NewStringMap[string, int](WithBuckets[string](0))
 	// Should use default
-	assert.Equal(t, defaultBucketCount, m.bucketTotal)
+	assert.Equal(t, defaultBucketCount, m.opts.bucketTotal)
 }
 
 func TestWithBucketsExceedMax(t *testing.T) {
 	m := NewStringMap[string, int](WithBuckets[string](20))
 	// Should be capped
-	assert.Equal(t, maxBucketCount, m.bucketTotal)
+	assert.Equal(t, maxBucketCount, m.opts.bucketTotal)
 }
 
 func TestMultipleWithBuckets(t *testing.T) {
@@ -451,7 +451,7 @@ func TestMultipleWithBuckets(t *testing.T) {
 		WithBuckets[string](3),
 		WithBuckets[string](5), // Should override
 	)
-	assert.Equal(t, 1<<5, m.bucketTotal)
+	assert.Equal(t, 1<<5, m.opts.bucketTotal)
 }
 
 // Extreme Scenario Tests

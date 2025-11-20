@@ -17,7 +17,7 @@ const (
 	maxBucketCount = 1 << 10
 )
 
-type bucketMap[K comparable, V any] struct {
+type bucket[K comparable, V any] struct {
 	sync.RWMutex
 	innerMap map[K]V
 }
@@ -34,8 +34,8 @@ type bucketMap[K comparable, V any] struct {
 // To use this map, you must create it with NewMap, NewStringMap, or NewIntegerMap.
 type SafeMap[K comparable, V any] struct {
 	count   int32
-	buckets []*bucketMap[K, V]
-	*options[K]
+	buckets []*bucket[K, V]
+	opts    *options[K]
 }
 
 // NewMap creates a new thread-safe, generic map with configurable options.
@@ -62,19 +62,19 @@ type SafeMap[K comparable, V any] struct {
 // The function initializes a map with multiple buckets to improve
 // concurrent access performance by reducing lock contention.
 func NewMap[K comparable, V any](options ...OptFunc[K]) (*SafeMap[K, V], error) {
-	opt, err := loadOpts(options...)
+	opt, err := buildOptions(options...)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &SafeMap[K, V]{
-		buckets: make([]*bucketMap[K, V], opt.bucketTotal),
-		options: opt,
+		buckets: make([]*bucket[K, V], opt.bucketTotal),
+		opts:    opt,
 		count:   0,
 	}
 
-	for i := 0; i < m.bucketTotal; i++ {
-		m.buckets[i] = &bucketMap[K, V]{innerMap: make(map[K]V)}
+	for i := 0; i < m.opts.bucketTotal; i++ {
+		m.buckets[i] = &bucket[K, V]{innerMap: make(map[K]V)}
 	}
 
 	return m, nil
@@ -101,19 +101,32 @@ func NewIntegerMap[K constraints.Integer, V any](options ...OptFunc[K]) *SafeMap
 
 // hashIndex returns key's lock index
 func (m *SafeMap[K, V]) hashIndex(key K) int {
-	return int(m.hashFunc(key) & uint64(m.bucketTotal-1))
+	return int(m.opts.hashFunc(key) & uint64(m.opts.bucketTotal-1))
 }
 
-// allLock locks all buckets
+// allLock locks all buckets in ascending order (0 to bucketTotal-1).
+// This consistent ordering prevents deadlocks when multiple goroutines
+// need to acquire all locks simultaneously.
+//
+// This method is used by operations that require exclusive access to
+// the entire map, such as Clear and Range.
+//
+// IMPORTANT: Always unlock in the same order using allUnlock to maintain
+// lock ordering consistency.
 func (m *SafeMap[K, V]) allLock() {
-	for i := 0; i < m.bucketTotal; i++ {
+	for i := 0; i < m.opts.bucketTotal; i++ {
 		m.buckets[i].Lock()
 	}
 }
 
-// allUnlock unlocks all buckets
+// allUnlock unlocks all buckets in ascending order (0 to bucketTotal-1).
+// This must be called after allLock to release all acquired locks.
+//
+// The unlock order matches the lock order to maintain consistency,
+// though the unlock order is less critical for deadlock prevention
+// than the lock order.
 func (m *SafeMap[K, V]) allUnlock() {
-	for i := 0; i < m.bucketTotal; i++ {
+	for i := 0; i < m.opts.bucketTotal; i++ {
 		m.buckets[i].Unlock()
 	}
 }
@@ -169,7 +182,7 @@ func (m *SafeMap[K, V]) Clear() {
 	m.allLock()
 	defer m.allUnlock()
 
-	for i := 0; i < m.bucketTotal; i++ {
+	for i := 0; i < m.opts.bucketTotal; i++ {
 		m.buckets[i].innerMap = make(map[K]V)
 	}
 	atomic.StoreInt32(&m.count, 0)
@@ -211,7 +224,7 @@ func (m *SafeMap[K, V]) GetOrSet(key K, val V) (V, bool) {
 // However, this means the iteration provides weak consistency: updates occurring
 // during iteration may or may not be observed.
 func (m *SafeMap[K, V]) Range(f func(k K, v V) bool) {
-	for i := 0; i < m.bucketTotal; i++ {
+	for i := 0; i < m.opts.bucketTotal; i++ {
 		bucket := m.buckets[i]
 
 		// Snapshot the bucket content

@@ -31,7 +31,7 @@ func WithHashFunc[K comparable](fn func(K) uint64) OptFunc[K] {
 	}
 }
 
-func loadOpts[K comparable](opts ...OptFunc[K]) (*options[K], error) {
+func buildOptions[K comparable](opts ...OptFunc[K]) (*options[K], error) {
 	opt := &options[K]{}
 	for i := range opts {
 		opts[i](opt)
