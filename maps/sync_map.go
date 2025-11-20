@@ -1,4 +1,4 @@
-package safemap
+package maps
 
 import "sync"
 
@@ -101,7 +101,8 @@ func (m *SyncMap[K, V]) CompareAndSwap(key K, old, new V) bool {
 	return m.p.CompareAndSwap(key, old, new)
 }
 
-// NewSyncMap returns a new empty SyncMap
+// NewSyncMap returns a new empty SyncMap with the specified key and value types.
+// K must be a comparable type (for map keys) and V can be any type.
 func NewSyncMap[K comparable, V any]() *SyncMap[K, V] {
 	return &SyncMap[K, V]{}
 }

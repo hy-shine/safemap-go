@@ -1,7 +1,9 @@
-package safemap
+package maps
 
 import "sync"
 
+// RwMap is a thread-safe map implementation with generic key-value types.
+// It uses a read-write mutex to protect concurrent access.
 type RwMap[T comparable, V any] struct {
 	m  map[T]V
 	mu sync.RWMutex

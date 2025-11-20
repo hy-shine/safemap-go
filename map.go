@@ -11,13 +11,13 @@ import (
 var ErrMissingHashFunc = errors.New("hash function is required")
 
 const (
-	// default buckets count
+	// DefaultBucketCount is the default number of buckets.
 	defaultBucketCount = 1 << 5
-	// max buckets count
+	// MaxBucketCount is the maximum number of buckets.
 	maxBucketCount = 1 << 10
 )
 
-type bucketMap[K comparable, V any] struct {
+type bucket[K comparable, V any] struct {
 	sync.RWMutex
 	innerMap map[K]V
 }
@@ -31,11 +31,11 @@ type bucketMap[K comparable, V any] struct {
 // The map is designed for high-concurrency scenarios where
 // thread safety and performance are important considerations.
 //
-// As you use this map, you must be create it with NewMap/NewStringMap/NewIntegerMap function.
+// To use this map, you must create it with NewMap, NewStringMap, or NewIntegerMap.
 type SafeMap[K comparable, V any] struct {
 	count   int32
-	buckets []*bucketMap[K, V]
-	*options[K]
+	buckets []*bucket[K, V]
+	opts    *options[K]
 }
 
 // NewMap creates a new thread-safe, generic map with configurable options.
@@ -62,19 +62,19 @@ type SafeMap[K comparable, V any] struct {
 // The function initializes a map with multiple buckets to improve
 // concurrent access performance by reducing lock contention.
 func NewMap[K comparable, V any](options ...OptFunc[K]) (*SafeMap[K, V], error) {
-	opt, err := loadOpts(options...)
+	opt, err := buildOptions(options...)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &SafeMap[K, V]{
-		buckets: make([]*bucketMap[K, V], opt.bucketTotal),
-		options: opt,
+		buckets: make([]*bucket[K, V], opt.bucketTotal),
+		opts:    opt,
 		count:   0,
 	}
 
-	for i := 0; i < m.bucketTotal; i++ {
-		m.buckets[i] = &bucketMap[K, V]{innerMap: make(map[K]V)}
+	for i := 0; i < m.opts.bucketTotal; i++ {
+		m.buckets[i] = &bucket[K, V]{innerMap: make(map[K]V)}
 	}
 
 	return m, nil
@@ -101,19 +101,32 @@ func NewIntegerMap[K constraints.Integer, V any](options ...OptFunc[K]) *SafeMap
 
 // hashIndex returns key's lock index
 func (m *SafeMap[K, V]) hashIndex(key K) int {
-	return int(m.hashFunc(key) & uint64(m.bucketTotal-1))
+	return int(m.opts.hashFunc(key) & uint64(m.opts.bucketTotal-1))
 }
 
-// allLock locks all buckets
+// allLock locks all buckets in ascending order (0 to bucketTotal-1).
+// This consistent ordering prevents deadlocks when multiple goroutines
+// need to acquire all locks simultaneously.
+//
+// This method is used by operations that require exclusive access to
+// the entire map, such as Clear and Range.
+//
+// IMPORTANT: Always unlock in the same order using allUnlock to maintain
+// lock ordering consistency.
 func (m *SafeMap[K, V]) allLock() {
-	for i := 0; i < m.bucketTotal; i++ {
+	for i := 0; i < m.opts.bucketTotal; i++ {
 		m.buckets[i].Lock()
 	}
 }
 
-// allUnlock unlocks all buckets
+// allUnlock unlocks all buckets in ascending order (0 to bucketTotal-1).
+// This must be called after allLock to release all acquired locks.
+//
+// The unlock order matches the lock order to maintain consistency,
+// though the unlock order is less critical for deadlock prevention
+// than the lock order.
 func (m *SafeMap[K, V]) allUnlock() {
-	for i := 0; i < m.bucketTotal; i++ {
+	for i := 0; i < m.opts.bucketTotal; i++ {
 		m.buckets[i].Unlock()
 	}
 }
@@ -150,31 +163,29 @@ func (m *SafeMap[K, V]) Delete(key K) {
 
 func (m *SafeMap[K, V]) GetAndDelete(key K) (val V, loaded bool) {
 	index := m.hashIndex(key)
-	m.buckets[index].Lock()
-	if val, b := m.buckets[index].innerMap[key]; b {
-		delete(m.buckets[index].innerMap, key)
+	bucket := m.buckets[index]
+	bucket.Lock()
+	defer bucket.Unlock()
+
+	if v, ok := bucket.innerMap[key]; ok {
+		delete(bucket.innerMap, key)
 		atomic.AddInt32(&m.count, -1)
-		m.buckets[index].Unlock()
-		return val, true
-	} else {
-		m.buckets[index].Unlock()
-		return val, false
+		return v, true
 	}
+	return val, false // val will be the zero value for V
 }
 
 // Clear clears the map
 func (m *SafeMap[K, V]) Clear() {
-	for i := 0; i < m.bucketTotal; i++ {
-		m.buckets[i].Lock()
-		// clear all keys
-		// avoid make new map
-		bucketLen := len(m.buckets[i].innerMap)
-		for key := range m.buckets[i].innerMap {
-			delete(m.buckets[i].innerMap, key)
-		}
-		atomic.AddInt32(&m.count, -int32(bucketLen))
-		m.buckets[i].Unlock()
+	// Lock all buckets to ensure atomicity of the clear operation across all shards
+	// and to safely reset the global count.
+	m.allLock()
+	defer m.allUnlock()
+
+	for i := 0; i < m.opts.bucketTotal; i++ {
+		m.buckets[i].innerMap = make(map[K]V)
 	}
+	atomic.StoreInt32(&m.count, 0)
 }
 
 // Len returns map items total
@@ -192,29 +203,45 @@ func (m *SafeMap[K, V]) IsEmpty() bool {
 // The loaded result is true if the value was loaded, false if stored.
 func (m *SafeMap[K, V]) GetOrSet(key K, val V) (V, bool) {
 	index := m.hashIndex(key)
-	m.buckets[index].Lock()
-	if val, b := m.buckets[index].innerMap[key]; b {
-		m.buckets[index].Unlock()
-		return val, true
+	bucket := m.buckets[index]
+	bucket.Lock()
+	defer bucket.Unlock()
+
+	if existingVal, ok := bucket.innerMap[key]; ok {
+		return existingVal, true
 	}
 
-	m.buckets[index].innerMap[key] = val
+	bucket.innerMap[key] = val
 	atomic.AddInt32(&m.count, 1)
-	m.buckets[index].Unlock()
 	return val, false
 }
 
 // Range calls f sequentially for each key and value present in the map.
 // If f returns false, the iteration stops.
+//
+// Note: This method uses a snapshot strategy per bucket. It does not hold locks
+// while calling f, preventing deadlocks if f calls other map methods.
+// However, this means the iteration provides weak consistency: updates occurring
+// during iteration may or may not be observed.
 func (m *SafeMap[K, V]) Range(f func(k K, v V) bool) {
-	m.allLock()
-	for i := 0; i < m.bucketTotal; i++ {
-		for key, val := range m.buckets[i].innerMap {
-			if !f(key, val) {
-				m.allUnlock()
+	for i := 0; i < m.opts.bucketTotal; i++ {
+		bucket := m.buckets[i]
+
+		// Snapshot the bucket content
+		bucket.RLock()
+		keys := make([]K, 0, len(bucket.innerMap))
+		vals := make([]V, 0, len(bucket.innerMap))
+		for k, v := range bucket.innerMap {
+			keys = append(keys, k)
+			vals = append(vals, v)
+		}
+		bucket.RUnlock()
+
+		// Iterate over the snapshot
+		for j := range keys {
+			if !f(keys[j], vals[j]) {
 				return
 			}
 		}
 	}
-	m.allUnlock()
 }
